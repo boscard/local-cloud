@@ -78,6 +78,8 @@ function cloud_init_generate_user_data_for_family() {
 		debian)
 			echo "packages:"
 			echo "  - qemu-guest-agent"
+			echo "runcmd:"
+			echo "  - ['systemctl', 'enable', '--now', 'qemu-guest-agent']"
 			;;
 		*)
 			echo "Unsupported family!" >&2
@@ -106,6 +108,32 @@ users:
       - $(if [[ -f ~/.ssh/id_ed25519.pub ]] ; then cat ~/.ssh/id_ed25519.pub; else cat ~/.ssh/id_rsa.pub; fi)
 $(cloud_init_generate_user_data_for_family ${vm_family})
 EOF
+}
+
+function wait_for_vm() {
+	local vmname="${1}"
+	local timeout="${2:-300}"
+	local interval=5
+	local elapsed=0
+	local ip=""
+
+	echo "Waiting for ${vmname} to be ready (guest agent)..."
+	while ! $VIRSH domifaddr "${vmname}" --source agent >/dev/null 2>&1
+	do
+		sleep $interval
+		elapsed=$((elapsed + interval))
+		if [[ $elapsed -gt $timeout ]]
+		then
+			continue
+		fi
+	done
+
+	ip=$($VIRSH domifaddr "${vmname}" --source agent 2>/dev/null | awk '/ipv4/ { split($4, a, "/"); print a[1] }')
+	if [[ -n "${ip}" ]]; then
+		echo "${vmname} is ready, IP: ${ip}"
+	else
+		echo "ERROR: ${vmname} guest agent did not respond within ${timeout}s" >&2
+	fi
 }
 
 function ensure_vms() {
@@ -141,6 +169,10 @@ function ensure_vms() {
 		else
 			echo "VM exists: ${vmname}"
 		fi
+	done
+	for vm in $(get_from_config '.instances.vms | keys[]')
+	do
+		wait_for_vm "${vm}-${suffix}"
 	done
 }
 
