@@ -127,6 +127,12 @@ function cloud_init_generate_user_data_for_family() {
 }
 function cloud_init_generate_user_data() {
 	vm_family="${1}"
+	local vm="${2}"
+	local vm_user
+	vm_user=$(get_from_config '.instances.vms."'"${vm}"'".username')
+	if [[ "${vm_user}" == "null" || -z "${vm_user}" ]]; then
+		vm_user=$(id -un)
+	fi
 	cat <<EOF
 #cloud-config
 timezone: $(timedatectl show | grep Timezone | awk -F '=' '{ print $2 }')
@@ -139,7 +145,7 @@ growpart:
   ignore_growroot_disabled: False
   mode: auto
 users:
-  - name: framework
+  - name: ${vm_user}
     groups: [sudo]
     shell: /bin/bash
     sudo: ['ALL=(ALL) NOPASSWD:ALL']
@@ -204,7 +210,7 @@ function ensure_vms() {
 				--ram=$(get_from_config '.instances.vms."'${vm}'".memory') \
 				--vcpus=$(get_from_config '.instances.vms."'${vm}'".cpu') \
 				--noautoconsole \
-				--cloud-init user-data=<(cloud_init_generate_user_data ${vm_family}),network-config=<(cloud_init_generate_network_config),meta-data=<(cloud_init_generate_metadata)
+				--cloud-init user-data=<(cloud_init_generate_user_data ${vm_family} ${vm}),network-config=<(cloud_init_generate_network_config),meta-data=<(cloud_init_generate_metadata)
 		else
 			echo "VM exists: ${vmname}"
 		fi
