@@ -1,0 +1,68 @@
+backend: libvirt
+uri: qemu:///system
+network:
+  name: test-net
+  ip:
+    address: 192.168.210.1
+    prefix: 24
+    dhcp:
+      start: 192.168.210.200
+      end: 192.168.210.254
+storage:
+  pool: cloudinit
+  images:
+    debian13:
+      family: debian
+      img: debian13.qcow2
+      src: https://cloud.debian.org/images/cloud/trixie/20260316-2418/debian-13-generic-amd64-20260316-2418.qcow2
+      checksum:
+        command: sha512sum
+        hash: c6523db54404e320ed30787038f155f649995392697fa2a41e49458d36e056fda020593a03cf910fa7bf93bd5c510b12d6e7c7bf7852a03ee3a64536fecf0127
+    debian12:
+      family: debian
+      img: debian12.qcow2
+      src: https://cloud.debian.org/images/cloud/bookworm/20260316-2418/debian-12-generic-amd64-20260316-2418.qcow2
+      checksum:
+        command: sha512sum
+        hash: 8a2b235b5a08db8475997301c294d0466d738b945c3f1e4abf625f0b005b081a71fe72625c586ba52d4d8b5a29ee514864bf47ffec1288921c71b5311beaa1fb
+    debian11:
+      family: debian
+      img: debian11.qcow2
+      src: https://cloud.debian.org/images/cloud/bullseye/20260317-2419/debian-11-generic-amd64-20260317-2419.qcow2
+      checksum:
+        command: sha512sum
+        hash: 6fefc6d5c2a4cb0f8a465a83c19924044bcbca551db7b4aca9c4680b061ed48f89ab59eff6be779f54ef8b4877aee23b04537d4071d878ba2914477d9a4c858c
+instances:
+  project: test
+  vms:
+    vm-1:
+      type: debian13
+      cpu: 1
+      memory: 2048
+      storage: 20G
+    vm-2:
+      type: debian12
+      cpu: 1
+      memory: 2048
+      storage: 20G
+    vm-3:
+      type: debian11
+      cpu: 1
+      memory: 2048
+      storage: 20G
+tests:
+  - type: ansible
+    inventory:
+      all:
+        hosts:
+          vm-1:
+            ansible_ssh_extra_args: -o StrictHostKeyChecking=no
+          vm-2:
+            ansible_ssh_extra_args: -o StrictHostKeyChecking=no
+          vm-3:
+            ansible_ssh_extra_args: -o StrictHostKeyChecking=no
+        all-in-one:
+          hosts:
+            vm-1: {}
+            vm-2: {}
+            vm-3: {}

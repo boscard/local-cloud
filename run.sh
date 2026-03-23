@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #set -x
 
-: ${CONFIG_FILE:="config.json"}
+: ${CONFIG_FILE:="config.yaml"}
 
 backend=$(yq -r .backend ${CONFIG_FILE})
 

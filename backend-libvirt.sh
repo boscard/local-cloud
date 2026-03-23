@@ -32,6 +32,30 @@ function get_from_config() {
 	yq -r "${1}" ${CONFIG_FILE}
 }
 
+function verify_image() {
+	local image_key="${1}"
+	local image_path="${2}"
+	local command expected actual
+
+	command=$(get_from_config ".storage.images.${image_key}.checksum.command")
+	if [[ "${command}" == "null" ]]; then
+		echo "WARNING: No checksum configured for ${image_key}, skipping verification" >&2
+		return 0
+	fi
+
+	expected=$(get_from_config ".storage.images.${image_key}.checksum.hash")
+	actual=$("${command}" "${image_path}" | awk '{print $1}')
+	if [[ "${actual}" != "${expected}" ]]; then
+		echo "ERROR: ${command} mismatch for ${image_key}" >&2
+		echo "  expected: ${expected}" >&2
+		echo "  got:      ${actual}" >&2
+		return 1
+	fi
+
+	echo "Checksum OK for ${image_key} (${command})"
+	return 0
+}
+
 function check_base_images() {
 	pool_name=${1}
 	pool_path=$($VIRSH pool-dumpxml --pool ${pool_name} --xpath "/pool/target/path/text()")
@@ -41,7 +65,21 @@ function check_base_images() {
 		if ! $VIRSH vol-info --vol ${image_name} --pool $pool_name > /dev/null 2>&1
 		then
 			echo "Image for ${image} not found. Trying to download one"
-			wget -q -O ${pool_path}/${image_name} $(get_from_config .storage.images.${image}.src)
+			local max_retries=$(get_from_config ".storage.download_retries // 3")
+			local attempt=1
+			while [[ ${attempt} -le ${max_retries} ]]; do
+				echo "Download attempt ${attempt}/${max_retries} for ${image}"
+				wget -q -O ${pool_path}/${image_name} $(get_from_config .storage.images.${image}.src)
+				if verify_image "${image}" "${pool_path}/${image_name}"; then
+					break
+				fi
+				rm -f "${pool_path}/${image_name}"
+				attempt=$((attempt + 1))
+			done
+			if [[ ${attempt} -gt ${max_retries} ]]; then
+				echo "ERROR: Failed to download verified image for ${image} after ${max_retries} attempts. Aborting." >&2
+				exit 1
+			fi
 			$VIRSH pool-refresh ${pool_name}
 		fi
 	done
@@ -122,9 +160,9 @@ function wait_for_vm() {
 	do
 		sleep $interval
 		elapsed=$((elapsed + interval))
-		if [[ $elapsed -gt $timeout ]]
+		if [[ $elapsed -ge $timeout ]]
 		then
-			continue
+			break
 		fi
 	done
 
