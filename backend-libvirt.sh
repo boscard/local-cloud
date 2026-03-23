@@ -103,11 +103,12 @@ function cloud_init_generate_metadata() {
 
 function cloud_init_generate_network_config() {
 	cat <<EOF
-network:
-  version: 2
-  ethernets:
-    ens3:
-      dhcp4: True
+version: 2
+ethernets:
+  all-en:
+    match:
+      name: "en*"
+    dhcp4: True
 EOF
 }
 function cloud_init_generate_user_data_for_family() {
