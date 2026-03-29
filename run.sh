@@ -10,6 +10,19 @@ fi
 
 : ${CONFIG_FILE:="config.yaml"}
 
+while getopts "c:" opt; do
+	case ${opt} in
+		c)
+			CONFIG_FILE="${OPTARG}"
+			;;
+		*)
+			echo "Usage: $0 [-c config_file] <action>"
+			exit 1
+			;;
+	esac
+done
+shift $((OPTIND - 1))
+
 backend=$(yq -r .backend ${CONFIG_FILE})
 
 if [[ ${backend} != "null" ]] && [[ ! -f "$(dirname ${script_file})/backend-${backend}.sh" ]]
@@ -27,7 +40,8 @@ action="$1"
 
 
 function help() {
-	echo "Some help"
+	echo "Usage: $0 [-c config_file] <action>"
+	echo "Actions: destroy, test"
 }
 
 function test_ansible() {

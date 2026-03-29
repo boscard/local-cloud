@@ -221,12 +221,49 @@ function ensure_vms() {
 	done
 }
 
+function get_vm_ip() {
+	local vmname="${1}"
+	$VIRSH domifaddr "${vmname}" --source agent 2>/dev/null \
+		| awk '/ipv4/ { split($4, a, "/"); print a[1] }'
+}
+
+function generate_ansible_inventory() {
+	local suffix=$(get_from_config .instances.project)
+	local config_dir=$(dirname "${CONFIG_FILE}")
+	local test_count=$(get_from_config '.tests | length')
+
+	for ((i = 0; i < test_count; i++)); do
+		local test_type=$(get_from_config ".tests[${i}].type")
+		if [[ "${test_type}" != "ansible" ]]; then
+			continue
+		fi
+
+		local inventory=$(yq ".tests[${i}].inventory" "${CONFIG_FILE}")
+
+		for vm in $(yq -r ".tests[${i}].inventory.all.hosts | keys[]" "${CONFIG_FILE}"); do
+			local vmname="${vm}-${suffix}"
+			local ip=$(get_vm_ip "${vmname}")
+			local vm_user=$(get_from_config '.instances.vms."'"${vm}"'".username')
+			if [[ "${vm_user}" == "null" || -z "${vm_user}" ]]; then
+				vm_user=$(id -un)
+			fi
+
+			inventory=$(echo "${inventory}" | yq \
+				".all.hosts.\"${vm}\".ansible_host = \"${ip}\" | .all.hosts.\"${vm}\".ansible_user = \"${vm_user}\"")
+		done
+
+		echo "${inventory}" > "${config_dir}/inventory.yaml"
+		echo "Ansible inventory written to ${config_dir}/inventory.yaml"
+	done
+}
+
 function ensure_instances() {
 	pool_name=$(get_from_config .storage.pool)
 	network_name=$(get_from_config .network.name)
 	configure_network ${network_name}
 	check_base_images ${pool_name}
 	ensure_vms ${pool_name} ${network_name}
+	generate_ansible_inventory
 }
 
 function clean_up() {
