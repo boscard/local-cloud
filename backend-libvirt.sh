@@ -173,7 +173,7 @@ function wait_for_vm() {
 		fi
 	done
 
-	ip=$($VIRSH domifaddr "${vmname}" --source agent 2>/dev/null | awk '/ipv4/ { split($4, a, "/"); print a[1] }')
+	ip=$($VIRSH domifaddr "${vmname}" --source agent 2>/dev/null | awk '/ipv4/ { split($4, a, "/"); if (a[1] != "127.0.0.1") print a[1] }' | head -1)
 	if [[ -n "${ip}" ]]; then
 		echo "${vmname} is ready, IP: ${ip}"
 	else
@@ -224,7 +224,7 @@ function ensure_vms() {
 function get_vm_ip() {
 	local vmname="${1}"
 	$VIRSH domifaddr "${vmname}" --source agent 2>/dev/null \
-		| awk '/ipv4/ { split($4, a, "/"); print a[1] }'
+		| awk '/ipv4/ { split($4, a, "/"); if (a[1] != "127.0.0.1") print a[1] }' | head -1
 }
 
 function generate_ansible_inventory() {
@@ -252,8 +252,8 @@ function generate_ansible_inventory() {
 				".all.hosts.\"${vm}\".ansible_host = \"${ip}\" | .all.hosts.\"${vm}\".ansible_user = \"${vm_user}\"")
 		done
 
-		echo "${inventory}" > "${config_dir}/inventory.yaml"
-		echo "Ansible inventory written to ${config_dir}/inventory.yaml"
+		echo "${inventory}" > "${config_dir}/hosts.yaml"
+		echo "Ansible inventory written to ${config_dir}/hosts.yaml"
 	done
 }
 
